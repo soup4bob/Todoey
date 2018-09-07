@@ -30,25 +30,34 @@ class CategoryViewController: UITableViewController {
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        
         let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
-        
         cell.textLabel?.text = categoryArray[indexPath.row].name
-        
         return cell
+    }
+    
+    //MARK: - TableView Delegate Methods
+
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        performSegue(withIdentifier: "goToItems", sender: self)
+    }
+    
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        let destinationVC = segue.destination as! TodoListViewController
         
+        if let indexPath = tableView.indexPathForSelectedRow {
+            destinationVC.selectedCategory = categoryArray[indexPath.row]
+        }
     }
     
     
     //MARK: - Data Manipulation Methods
-    
+ 
     func saveCategory() {
         do {
             try context.save()
         } catch {
-            print("error saving category context \(error)")
+            print("error saving category data \(error)")
         }
-        
         self.tableView.reloadData()
     }
     
@@ -59,7 +68,9 @@ class CategoryViewController: UITableViewController {
         } catch {
             print("error fetching category from context \(error)")
         }
+        self.tableView.reloadData()
     }
+    
     
     
     
@@ -70,38 +81,22 @@ class CategoryViewController: UITableViewController {
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
         
         var textField = UITextField()
-        
-        let alert = UIAlertController(title: "Add Category, Quick!", message: "stay shiny", preferredStyle: .alert)
-        
-        let action = UIAlertAction(title: "Punch It", style: .default) { (action) in
-            
+        let alert = UIAlertController(title: "Add category", message: "", preferredStyle: .alert)
+        let action = UIAlertAction(title: "Push this button", style: .default) { (action) in
             let newCategory = Category(context: self.context)
             newCategory.name = textField.text!
-            
-            if textField.text != "" {
-                self.categoryArray.append(newCategory)
-                
+            self.categoryArray.append(newCategory)
             self.saveCategory()
-            }
-            
         }
-        
-            alert.addAction(action)
-        
-            alert.addTextField { (field) in
+        alert.addAction(action)
+        alert.addTextField { (field) in
             textField = field
-            textField.placeholder = "Get that category in here!"
+            textField.placeholder = "Get that category in here"
         }
-        
-    
-        
         present(alert, animated: true, completion: nil)
-        
     }
     
     
-    
-    //MARK: - TableView Delegate Methods
     
     
     
