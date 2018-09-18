@@ -8,20 +8,24 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
-
-class CategoryViewController: UITableViewController {
+class CategoryViewController: SwipeTableViewController {
 
     let realm = try! Realm()
     
     var categories : Results<Category>?
     
     
-    
     override func viewDidLoad() {
         super.viewDidLoad()
 
         loadCategory()
+        
+        guard let navBar = navigationController?.navigationBar else {fatalError("Nvigation controller does not exist.")}
+        
+        navBar.largeTitleTextAttributes = [NSAttributedStringKey.foregroundColor : ContrastColorOf(navBar.tintColor, returnFlat: true)]
+        
         
     }
     
@@ -31,9 +35,28 @@ class CategoryViewController: UITableViewController {
         return categories?.count ?? 1
     }
     
+
+    
+    
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
-        cell.textLabel?.text = categories?[indexPath.row].name ?? "No Categories added yet"
+        
+        let longPressedRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(longPressed(_ :)))
+
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
+        
+        cell.addGestureRecognizer(longPressedRecognizer)
+
+        if let category = categories?[indexPath.row] {
+            
+            cell.textLabel?.text = category.name
+            
+            guard let categoryColour = UIColor(hexString: category.colorOfCategory) else {fatalError()}
+            
+            cell.backgroundColor = categoryColour
+            
+            cell.textLabel?.textColor = ContrastColorOf(categoryColour, returnFlat: true)
+        }
+        
         return cell
     }
     
@@ -72,6 +95,22 @@ class CategoryViewController: UITableViewController {
         tableView.reloadData()
       }
     
+    //MARK: - Delete Data From Swipe
+    
+    override func updateModel(at indexPath: IndexPath) {
+       
+        if let categoryForDeletion = self.categories?[indexPath.row] {
+            do {
+                try self.realm.write {
+                    self.realm.delete(categoryForDeletion)
+                }
+            } catch {
+                print("error deleting category \(error)")
+            }
+            
+        }
+
+    }
     
     
     
@@ -87,7 +126,7 @@ class CategoryViewController: UITableViewController {
             
             let newCategory = Category()
             newCategory.name = textField.text!
-            
+            newCategory.colorOfCategory = UIColor.randomFlat.hexValue()
             self.save(category: newCategory)
         }
         alert.addAction(action)
@@ -98,10 +137,40 @@ class CategoryViewController: UITableViewController {
         present(alert, animated: true, completion: nil)
     }
     
-    
-    
-    
-    
-    
-    
+
+
+//MARK: - editing items
+    @objc func longPressed(_ recognizer: UIGestureRecognizer) {
+        
+        if recognizer.state == UIGestureRecognizerState.ended {
+            let longPressedLocation = recognizer.location(in: self.tableView)
+            if let pressedIndexPath = self.tableView.indexPathForRow(at: longPressedLocation) {
+                var task = UITextField()
+                let alert = UIAlertController(title: "Modify title", message: "", preferredStyle: .alert)
+                let action = UIAlertAction(title: "Modify", style: .default) { (action) in
+                    
+                    if let Category = self.categories?[pressedIndexPath.row] {
+                        do {
+                            try self.realm.write {
+                                Category.name = "\(task.text ?? "")"
+                            }
+                        } catch {
+                            print("error updateing item name: \(error)")
+                        }
+                    }
+                    self.tableView.reloadData()
+                }
+                alert.addTextField(configurationHandler: {(alertTextField) in
+                    task = alertTextField
+                    task.placeholder = "New item title"
+                })
+                alert.addAction(action)
+                present(alert, animated: true, completion: nil)
+            }
+        }
+    }
+
+
 }
+
+

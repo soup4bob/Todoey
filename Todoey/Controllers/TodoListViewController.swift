@@ -8,12 +8,14 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
-class TodoListViewController: UITableViewController {
+class TodoListViewController: SwipeTableViewController {
 
     var todoItems : Results<Item>?
     let realm = try! Realm()
 
+    @IBOutlet weak var searchBar: UISearchBar!
     
     var selectedCategory : Category? {
         didSet{
@@ -23,8 +25,49 @@ class TodoListViewController: UITableViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-            
+        
+        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
+        
     }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        
+        guard let colourHex = selectedCategory?.colorOfCategory else { fatalError() }
+            
+        title = selectedCategory?.name
+        
+        updateNavBar(withHexCode: colourHex)
+        
+    }
+    
+    override func willMove(toParentViewController parent: UIViewController?) {
+        updateNavBar(withHexCode: "1D98F6")
+    }
+    
+    
+    //MARK: - Nav Bar Setup Methods
+    
+    func updateNavBar(withHexCode colourHexCode: String) {
+      
+        guard let navBar = navigationController?.navigationBar else {fatalError("Navigation controller does not exist.")}
+
+        guard let navBarColour = UIColor(hexString: colourHexCode) else { fatalError() }
+        
+        navBar.barTintColor = navBarColour
+        navBar.tintColor = ContrastColorOf(navBarColour, returnFlat: true)
+        navBar.largeTitleTextAttributes = [NSAttributedStringKey.foregroundColor: ContrastColorOf(navBarColour, returnFlat: true)]
+        searchBar.barTintColor = navBarColour
+        
+        // remove boarders of search bar
+        navBar.backgroundImage(for: UIBarPosition.any, barMetrics: UIBarMetrics.default)
+        navBar.shadowImage = UIImage()
+        searchBar.isTranslucent = true
+        searchBar.backgroundImage = UIImage()
+        
+        
+        
+    }
+    
     
     //MARK: - Tableview Datasource Methods
     
@@ -35,11 +78,22 @@ class TodoListViewController: UITableViewController {
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
+        let longPressedRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(longPressed(_ :)))
+        
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
+        
+        cell.addGestureRecognizer(longPressedRecognizer)
         
         if let item = todoItems?[indexPath.row] {
             
             cell.textLabel?.text = item.title
+            
+            if let colour = UIColor(hexString: selectedCategory!.colorOfCategory)?.darken(byPercentage:CGFloat(indexPath.row) / CGFloat(todoItems!.count)) {
+                cell.backgroundColor = colour
+                cell.textLabel?.textColor = ContrastColorOf(colour, returnFlat: true)
+                cell.tintColor = ContrastColorOf(colour, returnFlat: true)
+            }
+            
             
             cell.accessoryType = item.done == true ? .checkmark : .none
             
@@ -88,6 +142,7 @@ class TodoListViewController: UITableViewController {
                     let newItem = Item()
                     newItem.title = textField.text!
                     newItem.dateCreated = Date()
+                    
                     currentCategory.items.append(newItem)
                     }
                 }   catch {
@@ -110,18 +165,43 @@ class TodoListViewController: UITableViewController {
         
     }
     
+    
+    //MARK: - editing items
+    @objc func longPressed(_ recognizer: UIGestureRecognizer) {
+        
+        if recognizer.state == UIGestureRecognizerState.ended {
+            let longPressedLocation = recognizer.location(in: self.tableView)
+            if let pressedIndexPath = self.tableView.indexPathForRow(at: longPressedLocation) {
+                var task = UITextField()
+                let alert = UIAlertController(title: "Modify title", message: "", preferredStyle: .alert)
+                let action = UIAlertAction(title: "Modify", style: .default) { (action) in
+                    
+                    if let item = self.todoItems?[pressedIndexPath.row] {
+                        do {
+                            try self.realm.write {
+                                item.title = "\(task.text ?? "")"
+                            }
+                        } catch {
+                            print("error updateing item name: \(error)")
+                        }
+                    }
+                    self.tableView.reloadData()
+                }
+                alert.addTextField(configurationHandler: {(alertTextField) in
+                    task = alertTextField
+                    task.placeholder = "New item title"
+                })
+                alert.addAction(action)
+                present(alert, animated: true, completion: nil)
+            }
+        }
+    }
+    
+    
+    
     //MARK: - Model Manipulation Methods
     
-//    func saveItems() {
-//
-//        do {
-//            try context.save()
-//        } catch {
-//            print("error saving context \(error)")
-//        }
-//
-//        self.tableView.reloadData()
-//    }
+
     
     func loadItems() {
         
@@ -131,6 +211,22 @@ class TodoListViewController: UITableViewController {
 
     }
 
+    override func updateModel(at indexPath: IndexPath) {
+        
+        if let todoItemForDeletion = self.todoItems?[indexPath.row] {
+            do {
+                try self.realm.write{
+                    self.realm.delete(todoItemForDeletion)
+                }
+            } catch {
+                print("error deleteding todoItem \(error)")
+            }
+
+        }
+        
+    }
+    
+    
 
 }
 

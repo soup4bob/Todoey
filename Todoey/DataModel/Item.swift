@@ -8,6 +8,7 @@
 
 import Foundation
 import RealmSwift
+import ChameleonFramework
 
 class Item: Object {
     @objc dynamic var title : String = ""
